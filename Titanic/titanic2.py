@@ -8,26 +8,38 @@ import pandas as pd
 # Importing the dataset
 train = pd.read_csv('train.csv')
 test = pd.read_csv('test.csv')
-combine = pd.concat([train.drop("Survived", 1), test])
+combine = pd.concat([train.drop("Survived", 1), test], ignore_index = True)
 
 # Encoding categorical data
 from sklearn.preprocessing import LabelEncoder
 labelencoder = LabelEncoder()
-train["Sex"] = labelencoder.fit_transform(train["Sex"])
-test["Sex"] = labelencoder.transform(test["Sex"])
+combine["Sex"] = labelencoder.fit_transform(combine["Sex"])
 
 # Taking care of missing data
 from sklearn.preprocessing import Imputer
 imputer = Imputer(missing_values = 'NaN', strategy = 'mean', axis = 0)
-imputer = imputer.fit(train[["Age"]])
-train["Age"] = imputer.transform(train[["Age"]]).ravel()
-test["Age"]  = imputer.transform(test[["Age"]]).ravel()
-test.loc[test["Fare"].isnull(), "Fare"] = combine.loc[combine["Pclass"] == 3, "Fare"].median()
+imputer = imputer.fit(combine[["Age"]])
+combine["Age"] = imputer.transform(combine[["Age"]]).ravel()
+combine.loc[combine["Fare"].isnull(), "Fare"] = combine.loc[combine["Pclass"] == 3, "Fare"].median()
 
-X = train.loc[:, ["Pclass", "Sex", "Age", "SibSp", "Parch", "Fare"]]
-X_submission  =  test.loc[:, ["Pclass", "Sex", "Age", "SibSp", "Parch", "Fare"]]
+
+combine["IsAlone"] = combine["SibSp"] + combine["Parch"] == 0
+combine["IsBigFamily"] = combine["SibSp"] + combine["Parch"] >= 5
+
+# Embarked
+combine.loc[combine["Embarked"].isnull(), "Embarked"] = "C"
+combine["Embarked"] = combine["Embarked"].astype("category")
+combine["Embarked"].cat.categories = [0,1,2]
+combine["Embarked"] = combine["Embarked"].astype("int")
+combine["Embarked_C"] = combine["Embarked"] == 0
+combine["Embarked_Q"] = combine["Embarked"] == 1
+combine["Embarked_S"] = combine["Embarked"] == 2
+       
+cols = ["Sex", "Pclass", "Age", "IsAlone", "IsBigFamily", "Embarked_C", "Embarked_Q", "Embarked_S", "Fare", "Parch", "SibSp"]
+X = combine.loc[combine["PassengerId"] <= 891, cols]
+X_submission = combine.loc[combine["PassengerId"] > 891, cols]
 y = train.loc[:, "Survived"]
-
+            
 # Splitting the dataset into the Training set and Test set
 from sklearn.cross_validation import train_test_split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state = 0)
